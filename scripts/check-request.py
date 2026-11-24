@@ -6,7 +6,9 @@ asserts the expected effects from the deployment profile, requires every
 negative fixture to fail with its named reason, and checks that the exported
 TII, invoke args and README use the same names. Ties the generated fixture to
 the freshly built TII: its request output must equal the one the TIR evaluates
-to for the historical inputs. Standard library only.
+to for the historical inputs, and the rest of the TIR and the transaction must
+keep today's shape (one payment, change to the payer, nothing else). Standard
+library only.
 """
 import hashlib
 import json
@@ -23,6 +25,13 @@ TX = "place_swap_request"
 
 # Deadlines are POSIX milliseconds; a seconds value is ~1000x too small.
 MAX_DEADLINE_WINDOW_MS = 30 * 24 * 3600 * 1000
+
+FEES = {"EvalParam": "ExpectFees"}
+TIR_FIELDS = {"fees", "references", "inputs", "outputs", "validity", "mints", "burns",
+              "adhoc", "collateral", "signers", "metadata"}
+# Body fields the request carries: inputs, outputs, fee, required signers, network id.
+BODY_FIELDS = {0, 1, 2, 14, 15}
+EXTEND = "; if intended, extend scripts/check-request.py and regenerate (see README)"
 
 
 class Tag:
@@ -275,6 +284,42 @@ def tir_eval(node, env):
     raise ValueError(f"unsupported TIR node {kind}")
 
 
+def tir_param(name, ty):
+    return {"EvalParam": {"ExpectValue": [name, ty]}}
+
+
+def check_tir_shape(tir, request):
+    """Pin every TIR part outside the request output to the shape it has today.
+
+    The request output is evaluated separately; here one payment from Owner,
+    one change back to Owner and nothing else (validity, mints, metadata...)
+    are allowed, so any other construct fails and names itself.
+    """
+    def need(cond, construct):
+        assert cond, f"main.tx3 builds {construct}, which the check does not cover{EXTEND}"
+    need(set(tir) == TIR_FIELDS, f"TIR fields {sorted(set(tir) ^ TIR_FIELDS)}")
+    need(tir["fees"] == FEES, "a fee other than the resolved one")
+    need(tir["validity"] is None, "a validity interval")
+    for field in ("references", "mints", "burns", "adhoc", "collateral", "metadata"):
+        need(not tir[field], field)
+    need(len(tir["inputs"]) == 1 and tir["inputs"][0]["name"] == "payment", "inputs other than payment")
+    payment = tir["inputs"][0]
+    query = payment["utxos"]["EvalParam"]["ExpectInput"][1]
+    need(query["address"] == tir_param("owner", "Address"), "a payment not drawn from Owner")
+    need(query["min_amount"] == {"EvalBuiltIn": {"Add": [request["amount"], FEES]}},
+         "a payment minimum other than request + fees")
+    need(query["ref"] == "None" and not query["collateral"] and payment["redeemer"] == "None",
+         "a payment by reference, as collateral or with a redeemer")
+    need(len(tir["outputs"]) == 2 and not request["optional"], "outputs other than request and change")
+    change, = [o for o in tir["outputs"] if o is not request]
+    need(change["address"] == tir_param("owner", "Address") and change["datum"] == "None"
+         and not change["optional"], "a change output not sent plainly to Owner")
+    paid = {"EvalCoerce": {"IntoAssets": payment["utxos"]}}
+    need(change["amount"] == {"EvalBuiltIn": {"Sub": [
+        {"EvalBuiltIn": {"Sub": [paid, request["amount"]]}}, FEES]}},
+         "a change amount other than payment - request - fees")
+
+
 def tir_request(tii, args):
     """The request output and signers the built TIR yields for these inputs."""
     tir = cbor_decode(bytes.fromhex(tii["transactions"][TX]["tir"]["content"]))[0]
@@ -284,6 +329,7 @@ def tir_request(tii, args):
     outputs = [o for o in tir["outputs"] if o["address"] == {"EvalParam": {"ExpectValue": ["requestscript", "Address"]}}]
     assert len(outputs) == 1, f"TIR has {len(outputs)} outputs to RequestScript, expected 1"
     out = outputs[0]
+    check_tir_shape(tir, out)
     payment = [i for i in tir["inputs"] if i["name"] == "payment"]
     assert len(payment) == 1 and payment[0]["utxos"]["EvalParam"]["ExpectInput"][1]["many"], \
         "the payment input must be able to draw several UTxOs (input*)"
@@ -305,6 +351,15 @@ def check_generated_against_tir(tii, args, generated):
     assert datum == want["datum"], "generated request datum differs from what main.tx3 builds; regenerate (see README)"
     assert signers == tx_signers(generated["tx_cbor"]), \
         "generated tx's required signers differ from what main.tx3 declares; regenerate (see README)"
+    tx = cbor_decode(bytes.fromhex(generated["tx_cbor"]))[0]
+    extra = set(tx[0]) - BODY_FIELDS
+    assert not extra, f"generated tx body has fields {sorted(extra)} the check does not cover{EXTEND}"
+    assert tx[3] is None, f"generated tx carries auxiliary data (metadata){EXTEND}"
+    every = tx_outputs(generated["tx_cbor"])
+    assert len(every) == 2, f"generated tx has {len(every)} outputs, not request and change; regenerate (see README)"
+    change, = [o for o in every if o["address"] != want["address"]]
+    assert change["address"] == bech32_bytes(generated["resolved_from"]).hex() and change["datum"] is None, \
+        "generated tx's change does not go plainly to resolved_from; regenerate (see README)"
 
 
 def check_owner_args(args, expected):
@@ -349,7 +404,7 @@ def main():
     assert generated["expected"]["owner_pkh"] in tx_signers(generated["tx_cbor"]), \
         "generated request is not signed by owner_pkh"
     check_generated_against_tir(tii, reference_args, generated)
-    print("ok   generated: its request output and signer are what the current main.tx3 builds")
+    print("ok   generated: its outputs and signer are what the current main.tx3 builds")
     decoded = {}
     for name in ("reference", "generated"):
         fx = json.loads((FIXTURES / f"{name}-request.json").read_text())
