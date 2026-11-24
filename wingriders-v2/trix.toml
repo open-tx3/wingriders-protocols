@@ -1,0 +1,11 @@
+[protocol]
+name = "wingriders-v2"
+scope = "open-tx3"
+version = "0.1.0"
+description = "WingRiders DEX V2 — place a swap request on the ADA/DJED pool"
+main = "main.tx3"
+readme = "README.md"
+repository = "https://github.com/open-tx3/wingriders-protocols"
+
+[ledger]
+family = "cardano"

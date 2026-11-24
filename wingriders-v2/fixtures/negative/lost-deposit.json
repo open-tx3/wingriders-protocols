@@ -1,0 +1,19 @@
+{
+  "description": "Request value lacks the 2 ADA oil deposit.",
+  "derived_from": "92c25e5ec64e8c2843d282d4b1c9469e815bf29823b16377fd5040ff06220e02#0",
+  "rejects": "deposit-arithmetic",
+  "expected": {
+    "owner_pkh": "4263f524836ede0c72680b8ef11ac34fa31f163c29db9c3679688446",
+    "owner_stake_key": "c0bd755d5c4302ffa5c13db9ffda5411beaf51047bfb82250dcf387d",
+    "offer_lovelace": 436040900,
+    "min_receive": 62220622,
+    "deadline_ms": 1795560969000,
+    "created_posix_s": 1795550196
+  },
+  "output": {
+    "address": "11c134d839a64a5dfb9b155869ef3f34280751a622f69958baa8ffd29cc0bd755d5c4302ffa5c13db9ffda5411beaf51047bfb82250dcf387d",
+    "lovelace": 438040900,
+    "assets": {},
+    "datum": "d8799f1a001e8480d8799fd8799f581c4263f524836ede0c72680b8ef11ac34fa31f163c29db9c3679688446ffd8799fd8799fd8799f581cc0bd755d5c4302ffa5c13db9ffda5411beaf51047bfb82250dcf387dffffffffd8799fd8799f581c4263f524836ede0c72680b8ef11ac34fa31f163c29db9c3679688446ffd8799fd8799fd8799f581cc0bd755d5c4302ffa5c13db9ffda5411beaf51047bfb82250dcf387dffffffff80d879801b000001a20fc613284040581c8db269c3ec630e06ae29f74bc39edd1f87c819f1056206e879a1cd614c446a65644d6963726f555344d8799fd879801a03b5694eff0101ff"
+  }
+}
