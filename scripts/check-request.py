@@ -5,7 +5,8 @@ Decodes the request output of each fixture transaction (or bare output),
 asserts the expected effects from the deployment profile, requires every
 negative fixture to fail with its named reason, and checks that the exported
 TII, invoke args and README use the same names. Ties the generated fixture to
-the freshly built TII by its TIR digest. Standard library only.
+the freshly built TII: its request output must equal the one the TIR evaluates
+to for the historical inputs. Standard library only.
 """
 import hashlib
 import json
@@ -32,6 +33,12 @@ class Tag:
 class Constr:
     def __init__(self, index, fields):
         self.index, self.fields = index, fields
+
+    def __eq__(self, other):
+        return isinstance(other, Constr) and (self.index, self.fields) == (other.index, other.fields)
+
+    def __repr__(self):
+        return f"Constr({self.index}, {self.fields!r})"
 
 
 def cbor_decode(data, pos=0):
@@ -114,6 +121,14 @@ def tir_digest(tii):
 
 def tx_body(tx_cbor_hex):
     return cbor_decode(bytes.fromhex(tx_cbor_hex))[0][0]
+
+
+def check_tx_hash(fx):
+    """Require the recorded hash to be blake2b-256 of the transaction body bytes."""
+    data = bytes.fromhex(fx["tx_cbor"])
+    end = cbor_decode(data, 1)[1]
+    digest = hashlib.blake2b(data[1:end], digest_size=32).hexdigest()
+    assert digest == fx["tx_hash"], "tx_hash does not match the body of tx_cbor"
 
 
 def tx_signers(tx_cbor_hex):
@@ -223,6 +238,75 @@ def check_script_address(addr, script_hash):
     assert raw[1:29].hex() == script_hash, f"{addr} script {raw[1:29].hex()} != {script_hash}"
 
 
+def tir_eval(node, env):
+    """Evaluate the TIR expressions a request output uses into Plutus values."""
+    if not isinstance(node, dict) or len(node) != 1:
+        raise ValueError(f"unsupported TIR node {node!r}")
+    (kind, body), = node.items()
+    if kind == "EvalParam" and isinstance(body, dict) and "ExpectValue" in body:
+        name, ty = body["ExpectValue"]
+        value = env[name]
+        if ty == "Bytes":
+            return bytes.fromhex(value)
+        if ty == "Address":
+            return bech32_bytes(value)
+        if ty == "Int":
+            return value
+        raise ValueError(f"unsupported TIR param type {ty}")
+    if kind == "Struct":
+        return Constr(body["constructor"], [tir_eval(f, env) for f in body["fields"]])
+    if kind == "List":
+        return [tir_eval(v, env) for v in body]
+    if kind == "Number":
+        return body
+    if kind == "String":
+        return body.encode()
+    if kind == "EvalBuiltIn" and set(body) <= {"Add", "Sub"}:
+        (op, (a, b)), = body.items()
+        a, b = tir_eval(a, env), tir_eval(b, env)
+        return a + b if op == "Add" else a - b
+    if kind == "Assets":
+        lovelace = 0
+        for asset in body:
+            if asset["policy"] != "None" or asset["asset_name"] != "None":
+                raise ValueError("request output carries a native asset")
+            lovelace += tir_eval(asset["amount"], env)
+        return lovelace
+    raise ValueError(f"unsupported TIR node {kind}")
+
+
+def tir_request(tii, args):
+    """The request output and signers the built TIR yields for these inputs."""
+    tir = cbor_decode(bytes.fromhex(tii["transactions"][TX]["tir"]["content"]))[0]
+    profile = tii["profiles"]["mainnet"]
+    env = dict(args, **profile["environment"])
+    env.update(profile["parties"])
+    outputs = [o for o in tir["outputs"] if o["address"] == {"EvalParam": {"ExpectValue": ["requestscript", "Address"]}}]
+    assert len(outputs) == 1, f"TIR has {len(outputs)} outputs to RequestScript, expected 1"
+    out = outputs[0]
+    payment = [i for i in tir["inputs"] if i["name"] == "payment"]
+    assert len(payment) == 1 and payment[0]["utxos"]["EvalParam"]["ExpectInput"][1]["many"], \
+        "the payment input must be able to draw several UTxOs (input*)"
+    signers = {tir_eval(s, env).hex() for s in (tir.get("signers") or {}).get("signers", [])}
+    return {"address": tir_eval(out["address"], env).hex(), "lovelace": tir_eval(out["amount"], env),
+            "datum": tir_eval(out["datum"], env)}, signers
+
+
+def check_generated_against_tir(tii, args, generated):
+    """Require the generated tx to carry exactly the request the current TIR builds."""
+    want, signers = tir_request(tii, args)
+    outputs = [o for o in tx_outputs(generated["tx_cbor"]) if o["address"] == want["address"]]
+    assert len(outputs) == 1, "generated tx has no single output at the TIR's RequestScript address"
+    got = outputs[0]
+    assert got["lovelace"] == want["lovelace"], \
+        f"generated request holds {got['lovelace']} lovelace, main.tx3 builds {want['lovelace']}; regenerate (see README)"
+    assert not got["assets"], "generated request carries native assets main.tx3 does not build"
+    datum = plutus(cbor_decode(bytes.fromhex(got["datum"]))[0])
+    assert datum == want["datum"], "generated request datum differs from what main.tx3 builds; regenerate (see README)"
+    assert signers == tx_signers(generated["tx_cbor"]), \
+        "generated tx's required signers differ from what main.tx3 declares; regenerate (see README)"
+
+
 def check_owner_args(args, expected):
     """Require the owner address to carry the hashes written into the datum."""
     assert owner_hashes(args["owner"]) == (args["owner_pkh"], args["owner_stake_key"]), \
@@ -242,31 +326,34 @@ def check_interface(deployment, generated):
     assert profile["environment"] == env, f"mainnet profile env {profile['environment']} != {env}"
     assert profile["parties"]["requestscript"] == deployment["request_address"], "mainnet RequestScript"
     check_script_address(profile["parties"]["requestscript"], deployment["request_script_hash"])
-    digest = tir_digest(tii)
-    assert generated["tir_sha256"] == digest, \
-        f"main.tx3 builds TIR {digest}, not the generated fixture's; regenerate it (see README)"
+    assert generated["tir_sha256"] == tir_digest(tii), \
+        "main.tx3 builds a different TIR than the generated fixture records; regenerate it (see README)"
     names = params | set(tii["parties"])
     for path in (PROTOCOL / f"invoke-args/{TX}.json", FIXTURES / "reference-args.json"):
         args = json.loads(path.read_text())
         assert set(args) <= names, f"{path.name} not in interface: {set(args) - names}"
         assert set(tx["params"]["required"]) | {"owner"} <= set(args), f"{path.name} misses a required input"
-    check_owner_args(json.loads((FIXTURES / "reference-args.json").read_text()), generated["expected"])
+    reference_args = json.loads((FIXTURES / "reference-args.json").read_text())
+    check_owner_args(reference_args, generated["expected"])
     readme = (PROTOCOL / "README.md").read_text()
     missing = [n for n in params | set(env) if f"`{n}`" not in readme]
     assert not missing, f"README does not document {missing}"
+    return tii, reference_args
 
 
 def main():
     deployment = json.loads((FIXTURES / "deployment.json").read_text())
     generated = json.loads((FIXTURES / "generated-request.json").read_text())
-    check_interface(deployment, generated)
+    tii, reference_args = check_interface(deployment, generated)
     print("ok   interface: TII, mainnet profile, invoke args and README agree")
     assert generated["expected"]["owner_pkh"] in tx_signers(generated["tx_cbor"]), \
         "generated request is not signed by owner_pkh"
-    print("ok   generated: built from the current main.tx3 and requires the owner's signature")
+    check_generated_against_tir(tii, reference_args, generated)
+    print("ok   generated: its request output and signer are what the current main.tx3 builds")
     decoded = {}
     for name in ("reference", "generated"):
         fx = json.loads((FIXTURES / f"{name}-request.json").read_text())
+        check_tx_hash(fx)
         req = decode_request(find_request(tx_outputs(fx["tx_cbor"]), deployment["request_script_hash"]))
         check_effects(req, deployment, fx["expected"])
         decoded[name] = req

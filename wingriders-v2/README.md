@@ -63,8 +63,8 @@ future when the request lands.
   own wallet before each run (see [Use it](#use-it)).
 - [`fixtures/reference-args.json`](fixtures/reference-args.json) holds the
   historical inputs of the recorded request below. They are reproducible
-  evidence, not a runnable example: their deadline has passed and the owner
-  is that request's wallet.
+  evidence, not a runnable example: their deadline and owner are that
+  request's.
 
 ## Expected effects
 
@@ -133,20 +133,26 @@ when they are published.
   lost deposit, reversed direction) to be rejected;
 - checks that the `RequestScript` address is the request validator and that
   the historical `owner` carries `owner_pkh` and `owner_stake_key`;
-- requires the generated fixture to record the TIR digest of the freshly built
-  `place_swap_request`, and the generated transaction to require the owner's
-  signature.
+- evaluates the freshly built `place_swap_request` TIR for the historical
+  inputs and requires the generated transaction's request output (address,
+  lovelace, datum) and required signers to equal it, and its payment input to
+  draw several UTxOs;
+- requires each fixture's `tx_hash` to hash its transaction body, and the
+  generated fixture's `tir_sha256` to match the built TIR.
 
-A change to `main.tx3` that alters the built transaction fails the TIR check
-until the generated fixture is rebuilt from the historical inputs:
+A change to `main.tx3` that alters the built transaction, or a toolchain
+release that changes the TIR encoding, fails these checks until the generated
+fixture is rebuilt. From this directory:
 
 ```bash
-trix invoke --profile mainnet --skip-submit --args-json-path fixtures/reference-args.json
+python3 ../scripts/regenerate.py --resolve-from addr1...
+python3 ../scripts/check-request.py
 ```
 
-Then put the printed `cbor` and `hash` in `fixtures/generated-request.json`,
-together with the new `tir_sha256` that the failing check names. A toolchain
-release that changes the TIR encoding needs the same refresh.
+`regenerate.py` invokes the historical inputs unsigned and never submits.
+`--resolve-from` names any funded mainnet address to pay from (about 445 ADA),
+so the refresh does not depend on the reference wallet; the datum and signer
+keep the reference hashes. Without it the reference owner pays.
 
 ## License
 
