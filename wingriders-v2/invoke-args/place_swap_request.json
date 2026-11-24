@@ -1,8 +1,8 @@
 {
-  "owner": "addr1q9px8afysdhdurrjdq9caug6cd86x8ck8s5ah8pk095gg3kqh4646hzrqtl6tsfah8la54q3h6h4zprmlwpz2rw08p7snd4vuu",
-  "owner_pkh": "4263f524836ede0c72680b8ef11ac34fa31f163c29db9c3679688446",
-  "owner_stake_key": "c0bd755d5c4302ffa5c13db9ffda5411beaf51047bfb82250dcf387d",
-  "offer_lovelace": 436040900,
-  "min_receive": 62220622,
-  "deadline_ms": 1795560969000
+  "owner": "<your key/key mainnet base address, addr1q…>",
+  "owner_pkh": "<payment key hash of owner, 28-byte hex>",
+  "owner_stake_key": "<stake key hash of owner, 28-byte hex>",
+  "offer_lovelace": "<ADA to offer, in lovelace>",
+  "min_receive": "<minimum DJED from a current pool quote, smallest unit>",
+  "deadline_ms": "<a future POSIX time, in milliseconds>"
 }

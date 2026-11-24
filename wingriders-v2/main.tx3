@@ -11,6 +11,7 @@
 
 /// Wallet placing the request. Pays the offer, oil and agent fee, receives the
 /// change, and is both the request's beneficiary and its owner (reclaim key).
+/// Its payment key (`owner_pkh`) must sign the transaction.
 party Owner;
 
 /// WingRiders V2 request validator address (script c134d839…ffd29c).
@@ -106,7 +107,7 @@ tx place_swap_request(
     /// Last moment the agent may apply the request, POSIX time in milliseconds.
     deadline_ms: Int,
 ) {
-    input payment {
+    input* payment {
         from: Owner,
         min_amount: Ada(offer_lovelace + oil + agent_fee) + fees,
     }
@@ -151,5 +152,10 @@ tx place_swap_request(
     output change {
         to: Owner,
         amount: payment - Ada(offer_lovelace + oil + agent_fee) - fees,
+    }
+
+    // Only the owner can reclaim the request, so the owner key must sign.
+    signers {
+        owner_pkh,
     }
 }

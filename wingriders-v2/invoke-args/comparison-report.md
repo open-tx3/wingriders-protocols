@@ -11,10 +11,13 @@ every row marked *checked* on each CI run, from the fixtures in
 |---|---|---|
 | Reference request (ADA → DJED) | `92c25e5ec64e8c2843d282d4b1c9469e815bf29823b16377fd5040ff06220e02` | mainnet, block 14243637, slot 203983905 ([fixture](../fixtures/reference-request.json)) |
 | Agent applying it | `57b5303f71e40df66cda31a59cfc105ff8c4f3dd6a2f87e24e5ec1b663c336a9` | mainnet, same pool |
-| Generated (unsigned) | `553cb7c3ffe78d1c627abd4d54964e6bc35d525a6a5c622d0f20a6a42b74ed95` | `trix invoke --profile mainnet --skip-submit --args-json-path place_swap_request.json`, trix 0.28.0 ([fixture](../fixtures/generated-request.json)) |
+| Generated (unsigned) | `1c8c9a17e1a12f7b510202e644d3d9dba29fb53777738ac4a517839704d49892` | `trix invoke --profile mainnet --skip-submit --args-json-path fixtures/reference-args.json`, trix 0.28.0 ([fixture](../fixtures/generated-request.json)) |
 
-The invoke args replay the reference owner, amounts and deadline, so the two
-requests should decode to the same effects.
+The historical args in [`fixtures/reference-args.json`](../fixtures/reference-args.json)
+replay the reference owner, amounts and deadline, so the two requests should
+decode to the same effects. They are not the live example: that is the
+template in [`place_swap_request.json`](place_swap_request.json), refreshed per
+run as the README describes.
 
 ## Request output
 
@@ -57,6 +60,7 @@ reject it for the named reason.
 | Datum encoding | The reference uses indefinite-length CBOR arrays, Tx3 definite-length. The Plutus data is identical; the datum bytes and hash differ. |
 | Wallet inputs, change, fee | Different UTxOs at resolution time. `--skip-submit` builds with a provisional fee. |
 | TTL | The reference sets slot 203987478; this interface sets no validity interval. The deadline in the datum bounds fulfilment. |
+| Required signers | The generated transaction lists `owner_pkh` (body field 14) so only the owner's key can authorize the request; the reference lists none, its wallet signs as the spender. |
 | Witnesses | The generated transaction is unsigned. |
 
 ## Reproduce
@@ -64,10 +68,12 @@ reject it for the named reason.
 ```bash
 cd wingriders-v2
 trix build
-trix invoke --profile mainnet --skip-submit --args-json-path invoke-args/place_swap_request.json
+trix invoke --profile mainnet --skip-submit --args-json-path fixtures/reference-args.json
 python3 ../scripts/check-request.py
 ```
 
 A re-run of `trix invoke` resolves the owner's current UTxOs, so its inputs,
 change and hash differ from the checked-in generated fixture; the request
-output does not.
+output does not. The check also requires the fixture's `tir_sha256` to match
+the freshly built interface, so a change to `main.tx3` cannot pass against a
+stale fixture.

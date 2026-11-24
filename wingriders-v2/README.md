@@ -22,8 +22,11 @@ Tagged release source: [`v0.1.0`](https://github.com/open-tx3/wingriders-protoco
 |---|---|---|
 | `place_swap_request` | mainnet | Locks `offer_lovelace + oil + agent_fee` at the request validator with a `Swap SwapAToB` request datum. Runs no script. |
 
-The owner signs as the wallet that pays. The request names the owner as both
-beneficiary (receives the swap result) and owner (only key that may reclaim).
+The owner pays from one or more of their UTxOs and must sign with the key
+`owner_pkh`, which the transaction lists as a required signer. The request
+names the owner as both beneficiary (receives the swap result) and owner (only
+key that may reclaim), so a wrong hash would lock the request or send its
+proceeds elsewhere.
 
 ## Deployment (`mainnet` profile)
 
@@ -51,10 +54,17 @@ Every coordinate and where it was read is in
 | `min_receive` | Int | DJED smallest unit (1 DJED = 1 000 000) | Minimum DJED the agent must pay out. |
 | `deadline_ms` | Int | POSIX **milliseconds** | Last moment the agent may apply the request. |
 
-[`invoke-args/place_swap_request.json`](invoke-args/place_swap_request.json)
-replays the inputs of the recorded request below. `owner_pkh` and
-`owner_stake_key` must be the two halves of `owner`; `min_receive` comes from a
-current pool quote; `deadline_ms` must be in the future when you submit.
+`owner_pkh` and `owner_stake_key` must be the two halves of `owner`;
+`min_receive` comes from a current pool quote; `deadline_ms` must be in the
+future when the request lands.
+
+- [`invoke-args/place_swap_request.json`](invoke-args/place_swap_request.json)
+  is the live-resolution example: a template whose values you fill for your
+  own wallet before each run (see [Use it](#use-it)).
+- [`fixtures/reference-args.json`](fixtures/reference-args.json) holds the
+  historical inputs of the recorded request below. They are reproducible
+  evidence, not a runnable example: their deadline has passed and the owner
+  is that request's wallet.
 
 ## Expected effects
 
@@ -97,9 +107,16 @@ trix use open-tx3/wingriders-v2:0.1.0
 | Java | [`land.tx3:tx3-sdk`](https://central.sonatype.com/artifact/land.tx3/tx3-sdk) (Maven Central) | `trix codegen --plugin java-client` |
 | Swift | [`Tx3SDK`](https://github.com/tx3-lang/swift-sdk) (Swift Package Manager) | `trix codegen --plugin swift-client` |
 
-To build the unsigned transaction from this directory:
+To build an unsigned transaction for your own wallet, refresh the live inputs
+from this directory, then invoke. Take `--min-receive` from a current quote
+(the WingRiders app, or the pool reserves less your slippage).
+[`scripts/live_args.py`](../scripts/live_args.py) splits your address into
+the two hashes and sets the deadline from the current clock (180 minutes by
+default):
 
 ```bash
+python3 ../scripts/live_args.py --owner addr1q... --offer-lovelace 100000000 \
+  --min-receive 14000000 > invoke-args/place_swap_request.json
 trix invoke --profile mainnet --skip-submit --args-json-path invoke-args/place_swap_request.json
 ```
 
@@ -109,10 +126,27 @@ when they are published.
 ## Checks
 
 `trix check` and `trix build`, then
-[`scripts/check-request.py`](../scripts/check-request.py), which decodes the
-recorded and the generated request, asserts the effects above, and requires the
-[negative fixtures](fixtures/negative/) (deadline in seconds, lost deposit,
-reversed direction) to be rejected.
+[`scripts/check-request.py`](../scripts/check-request.py). It:
+
+- decodes the recorded and the generated request and asserts the effects above;
+- requires the [negative fixtures](fixtures/negative/) (deadline in seconds,
+  lost deposit, reversed direction) to be rejected;
+- checks that the `RequestScript` address is the request validator and that
+  the historical `owner` carries `owner_pkh` and `owner_stake_key`;
+- requires the generated fixture to record the TIR digest of the freshly built
+  `place_swap_request`, and the generated transaction to require the owner's
+  signature.
+
+A change to `main.tx3` that alters the built transaction fails the TIR check
+until the generated fixture is rebuilt from the historical inputs:
+
+```bash
+trix invoke --profile mainnet --skip-submit --args-json-path fixtures/reference-args.json
+```
+
+Then put the printed `cbor` and `hash` in `fixtures/generated-request.json`,
+together with the new `tir_sha256` that the failing check names. A toolchain
+release that changes the TIR encoding needs the same refresh.
 
 ## License
 

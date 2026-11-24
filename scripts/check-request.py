@@ -4,16 +4,21 @@
 Decodes the request output of each fixture transaction (or bare output),
 asserts the expected effects from the deployment profile, requires every
 negative fixture to fail with its named reason, and checks that the exported
-TII, invoke args and README use the same names. Standard library only.
+TII, invoke args and README use the same names. Ties the generated fixture to
+the freshly built TII by its TIR digest. Standard library only.
 """
+import hashlib
 import json
+import re
 import sys
 from pathlib import Path
+
+from live_args import bech32_bytes, owner_hashes
 
 ROOT = Path(__file__).resolve().parent.parent
 PROTOCOL = ROOT / "wingriders-v2"
 FIXTURES = PROTOCOL / "fixtures"
-TII = PROTOCOL / ".tx3/tii/open-tx3/wingriders-v2/0.1.0/main.tii"
+TX = "place_swap_request"
 
 # Deadlines are POSIX milliseconds; a seconds value is ~1000x too small.
 MAX_DEADLINE_WINDOW_MS = 30 * 24 * 3600 * 1000
@@ -93,10 +98,33 @@ def plutus(value):
     return value
 
 
+def tii_path():
+    """Locate the TII `trix build` writes for the version in trix.toml."""
+    text = (PROTOCOL / "trix.toml").read_text()
+    section = re.search(r"^\[protocol\]$(.*?)(?=^\[|\Z)", text, re.M | re.S).group(1)
+    meta = dict(re.findall(r'^(scope|name|version)\s*=\s*"([^"]+)"', section, re.M))
+    return PROTOCOL / ".tx3/tii" / meta["scope"] / meta["name"] / meta["version"] / "main.tii"
+
+
+def tir_digest(tii):
+    """SHA-256 of the transaction's TIR, so any change to main.tx3 shows."""
+    tir = json.dumps(tii["transactions"][TX]["tir"], sort_keys=True)
+    return hashlib.sha256(tir.encode()).hexdigest()
+
+
+def tx_body(tx_cbor_hex):
+    return cbor_decode(bytes.fromhex(tx_cbor_hex))[0][0]
+
+
+def tx_signers(tx_cbor_hex):
+    """Required signer key hashes (body field 14), hex."""
+    signers = tx_body(tx_cbor_hex).get(14, [])
+    return {s.hex() for s in (signers.value if isinstance(signers, Tag) else signers)}
+
+
 def tx_outputs(tx_cbor_hex):
-    tx, _ = cbor_decode(bytes.fromhex(tx_cbor_hex))
     outputs = []
-    for out in tx[0][1]:
+    for out in tx_body(tx_cbor_hex)[1]:
         if isinstance(out, dict):
             address, value, datum_option = out[0], out[1], out.get(2)
         else:
@@ -187,9 +215,25 @@ def check_effects(req, deployment, expected):
     need(req["deadline"] == expected["deadline_ms"], "deadline")
 
 
-def check_interface(deployment):
-    tii = json.loads(TII.read_text())
-    tx = tii["transactions"]["place_swap_request"]
+def check_script_address(addr, script_hash):
+    """Require a mainnet address whose payment credential is the given script."""
+    raw = bech32_bytes(addr)
+    assert raw[0] >> 4 in (1, 3, 5, 7), f"{addr} payment credential is not a script"
+    assert raw[0] & 0x0F == 1, f"{addr} is not a mainnet address"
+    assert raw[1:29].hex() == script_hash, f"{addr} script {raw[1:29].hex()} != {script_hash}"
+
+
+def check_owner_args(args, expected):
+    """Require the owner address to carry the hashes written into the datum."""
+    assert owner_hashes(args["owner"]) == (args["owner_pkh"], args["owner_stake_key"]), \
+        "owner address does not carry owner_pkh and owner_stake_key"
+    for key in ("owner_pkh", "owner_stake_key", "offer_lovelace", "min_receive", "deadline_ms"):
+        assert args[key] == expected[key], f"reference args {key}={args[key]!r} != fixture {expected[key]!r}"
+
+
+def check_interface(deployment, generated):
+    tii = json.loads(tii_path().read_text())
+    tx = tii["transactions"][TX]
     params = set(tx["params"]["properties"])
     profile = tii["profiles"]["mainnet"]
     pool = deployment["pool"]
@@ -197,10 +241,16 @@ def check_interface(deployment):
            "agent_fee": pool["agent_fee"], "oil": deployment["min_oil"]}
     assert profile["environment"] == env, f"mainnet profile env {profile['environment']} != {env}"
     assert profile["parties"]["requestscript"] == deployment["request_address"], "mainnet RequestScript"
-    args = json.loads((PROTOCOL / "invoke-args/place_swap_request.json").read_text())
+    check_script_address(profile["parties"]["requestscript"], deployment["request_script_hash"])
+    digest = tir_digest(tii)
+    assert generated["tir_sha256"] == digest, \
+        f"main.tx3 builds TIR {digest}, not the generated fixture's; regenerate it (see README)"
     names = params | set(tii["parties"])
-    assert set(args) <= names, f"invoke args not in interface: {set(args) - names}"
-    assert set(tx["params"]["required"]) <= set(args), "invoke args miss a required param"
+    for path in (PROTOCOL / f"invoke-args/{TX}.json", FIXTURES / "reference-args.json"):
+        args = json.loads(path.read_text())
+        assert set(args) <= names, f"{path.name} not in interface: {set(args) - names}"
+        assert set(tx["params"]["required"]) | {"owner"} <= set(args), f"{path.name} misses a required input"
+    check_owner_args(json.loads((FIXTURES / "reference-args.json").read_text()), generated["expected"])
     readme = (PROTOCOL / "README.md").read_text()
     missing = [n for n in params | set(env) if f"`{n}`" not in readme]
     assert not missing, f"README does not document {missing}"
@@ -208,8 +258,12 @@ def check_interface(deployment):
 
 def main():
     deployment = json.loads((FIXTURES / "deployment.json").read_text())
-    check_interface(deployment)
+    generated = json.loads((FIXTURES / "generated-request.json").read_text())
+    check_interface(deployment, generated)
     print("ok   interface: TII, mainnet profile, invoke args and README agree")
+    assert generated["expected"]["owner_pkh"] in tx_signers(generated["tx_cbor"]), \
+        "generated request is not signed by owner_pkh"
+    print("ok   generated: built from the current main.tx3 and requires the owner's signature")
     decoded = {}
     for name in ("reference", "generated"):
         fx = json.loads((FIXTURES / f"{name}-request.json").read_text())
