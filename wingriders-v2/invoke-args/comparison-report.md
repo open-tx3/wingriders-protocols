@@ -76,5 +76,9 @@ python3 ../scripts/check-request.py
 address (the reference owner by default), so its inputs, change and hash
 differ from the checked-in generated fixture; the request output and signer
 do not. The check evaluates the freshly built TIR for the historical inputs
-and requires the generated request output and signers to equal it, so a
-change to `main.tx3` cannot pass against a stale fixture.
+and requires the generated request output and signers to equal it. It also
+pins the rest of the TIR (one `input*` payment from `Owner`, one change back
+to `Owner`, nothing else) and requires the generated transaction to hold only
+those two outputs, with the change paid to `resolved_from`. A change to
+`main.tx3` in any of those parts cannot pass against a stale fixture; the
+selected wallet UTxOs and the fee are not compared.

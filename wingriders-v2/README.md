@@ -135,14 +135,24 @@ when they are published.
   the historical `owner` carries `owner_pkh` and `owner_stake_key`;
 - evaluates the freshly built `place_swap_request` TIR for the historical
   inputs and requires the generated transaction's request output (address,
-  lovelace, datum) and required signers to equal it, and its payment input to
-  draw several UTxOs;
+  lovelace, datum) and required signers to equal it;
+- pins the rest of that TIR to its current shape: one payment input declared
+  `input*` (so it may draw several UTxOs), from `Owner`, covering the request
+  and fees; one change output back to `Owner`; no other output, and no
+  validity interval, mint, burn, reference, collateral or metadata. Any other
+  construct fails and is named, so a deliberate addition extends the check;
+- requires the generated transaction to hold only the request and change
+  outputs, its change paid to the fixture's `resolved_from`, and no body
+  fields beyond inputs, outputs, fee, required signers and network id, nor
+  metadata;
 - requires each fixture's `tx_hash` to hash its transaction body, and the
   generated fixture's `tir_sha256` to match the built TIR.
 
-A change to `main.tx3` that alters the built transaction, or a toolchain
-release that changes the TIR encoding, fails these checks until the generated
-fixture is rebuilt. From this directory:
+Which wallet UTxOs the payment selects, and the fee, are not compared: they
+depend on the payer's wallet at resolution time. A change to `main.tx3` that
+alters any checked part of the built transaction, or a toolchain release that
+changes the TIR encoding, fails these checks until the generated fixture is
+rebuilt. From this directory:
 
 ```bash
 python3 ../scripts/regenerate.py --resolve-from addr1...
