@@ -152,7 +152,10 @@ Which wallet UTxOs the payment selects, and the fee, are not compared: they
 depend on the payer's wallet at resolution time. A change to `main.tx3` that
 alters any checked part of the built transaction, or a toolchain release that
 changes the TIR encoding, fails these checks until the generated fixture is
-rebuilt. From this directory:
+rebuilt. A toolchain release that also re-shapes a TIR node the shape check
+pins keeps failing after the rebuild until the check in
+`scripts/check-request.py` is updated to the new encoding. From this
+directory:
 
 ```bash
 python3 ../scripts/regenerate.py --resolve-from addr1...
