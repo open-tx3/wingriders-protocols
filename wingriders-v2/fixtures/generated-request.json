@@ -1,0 +1,17 @@
+{
+  "description": "Unsigned tx built by scripts/regenerate.py: `trix invoke --profile mainnet --skip-submit` with the historical inputs of fixtures/reference-args.json, paying from `resolved_from` (the reference owner unless --resolve-from names another funded address). Wallet inputs and change are resolved live and differ on a re-run; the request output and signer do not. check-request.py requires them to equal what the current main.tx3 builds, `tx_hash` to hash the body, and `tir_sha256` to match the built TIR.",
+  "tx_hash": "783ece2f60ef89e5017e60632e2538612eade6afb01ec5cdcc6ff2e8531b31d7",
+  "network": "mainnet",
+  "toolchain": "trix 0.28.0",
+  "tir_sha256": "488d5bf41e9a926a7c7858a4c48b44429b010cdf54649c4ae03ce8d3e670518f",
+  "expected": {
+    "owner_pkh": "71692fcab70aa1574a340333b401fe2452222fd4a11a6227f1e61dba",
+    "owner_stake_key": "513afdfa631a0e6c5709380006fde366f8b5b24e49866f615971d9df",
+    "offer_lovelace": 252000000,
+    "min_receive": 89185,
+    "deadline_ms": 1795499508453,
+    "created_posix_s": 1795477922
+  },
+  "resolved_from": "addr1q9ckjt72ku92z462xspn8dqplcj9yg306js35c3878npmwj38t7l5cc6pek9wzfcqqr0mcmxlz6mynjfsehkzkt3m80s7u8zm9",
+  "tx_cbor": "84a500d9010281825820076229e34703efacde9129548c3313f17a2249503f4fc8ec2f4b928c148214ee010182a300581d71c134d839a64a5dfb9b155869ef3f34280751a622f69958baa8ffd29c011a0f424000028201d81858ddd8798d1a001e8480d87982d87981581c71692fcab70aa1574a340333b401fe2452222fd4a11a6227f1e61dbad87981d87981d87981581c513afdfa631a0e6c5709380006fde366f8b5b24e49866f615971d9dfd87982d87981581c71692fcab70aa1574a340333b401fe2452222fd4a11a6227f1e61dbad87981d87981d87981581c513afdfa631a0e6c5709380006fde366f8b5b24e49866f615971d9df80d879801b000001a20c1c42e54040581c279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f44534e454bd87982d879801a00015c610101a20058390171692fcab70aa1574a340333b401fe2452222fd4a11a6227f1e61dba513afdfa631a0e6c5709380006fde366f8b5b24e49866f615971d9df011a00812058021a00198b610ed9010281581c71692fcab70aa1574a340333b401fe2452222fd4a11a6227f1e61dba0f01a0f5f6"
+}

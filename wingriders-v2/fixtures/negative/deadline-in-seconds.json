@@ -1,0 +1,19 @@
+{
+  "description": "Deadline written in POSIX seconds instead of milliseconds.",
+  "derived_from": "a94abb492b23ec07d16d38f0964e3f664851ca19fb4b9b403b9e5b6b544f103e#0",
+  "rejects": "deadline-units",
+  "expected": {
+    "owner_pkh": "71692fcab70aa1574a340333b401fe2452222fd4a11a6227f1e61dba",
+    "owner_stake_key": "513afdfa631a0e6c5709380006fde366f8b5b24e49866f615971d9df",
+    "offer_lovelace": 252000000,
+    "min_receive": 89185,
+    "deadline_ms": 1795499508453,
+    "created_posix_s": 1795477922
+  },
+  "output": {
+    "address": "71c134d839a64a5dfb9b155869ef3f34280751a622f69958baa8ffd29c",
+    "lovelace": 256000000,
+    "assets": {},
+    "datum": "d8799f1a001e8480d8799fd8799f581c71692fcab70aa1574a340333b401fe2452222fd4a11a6227f1e61dbaffd8799fd8799fd8799f581c513afdfa631a0e6c5709380006fde366f8b5b24e49866f615971d9dfffffffffd8799fd8799f581c71692fcab70aa1574a340333b401fe2452222fd4a11a6227f1e61dbaffd8799fd8799fd8799f581c513afdfa631a0e6c5709380006fde366f8b5b24e49866f615971d9dfffffffff80d879801a6b0525f44040581c279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f44534e454bd8799fd879801a00015c61ff0101ff"
+  }
+}

@@ -1,0 +1,161 @@
+// WingRiders DEX V2 — swap request placement on one pinned pool.
+//
+// A V2 swap is two transactions: the owner locks a request at the request
+// validator (this file), then a WingRiders agent applies it against the pool.
+// Placing the request runs no script; the pool validator checks the datum when
+// the agent applies it. Fulfilment and reclaim are out of scope.
+//
+// Datum layout: WingRiders/dex-v2-contracts@280a9e8, src/DEX/Types/Request.hs.
+
+// --- Parties ---
+
+/// Wallet placing the request. Pays the offer, oil and agent fee, receives the
+/// change, and is both the request's beneficiary and its owner (reclaim key).
+/// Its payment key (`owner_pkh`) must sign the transaction.
+party Owner;
+
+/// WingRiders V2 request validator address (script c134d839…ffd29c).
+party RequestScript;
+
+// --- Environment (bound by the mainnet profile) ---
+
+env {
+    /// Policy id of the pinned pool's asset B. Asset A is ADA.
+    pool_asset_b_policy: Bytes,
+    /// Asset name (hex) of the pinned pool's asset B.
+    pool_asset_b_name: Bytes,
+    /// Agent fee in lovelace, read from the pool datum (`agentFeeAda`).
+    agent_fee: Int,
+    /// Refundable ADA deposit ("oil") in lovelace, returned with the
+    /// compensation. The pool rejects requests below 2_000_000.
+    oil: Int,
+}
+
+// --- Plutus data shapes (constructor index 0 unless noted) ---
+
+// PubKeyCredential = Constr(0, [hash]).
+type PubKeyCredential {
+    hash: Bytes,
+}
+
+// StakingHash = Constr(0, [PubKeyCredential]).
+type StakingHash {
+    credential: PubKeyCredential,
+}
+
+// Just StakingCredential = Constr(0, [StakingHash]).
+type JustStaking {
+    staking: StakingHash,
+}
+
+// Address = Constr(0, [payment credential, Maybe staking credential]); key/key only.
+type PlutusAddress {
+    payment: PubKeyCredential,
+    staking: JustStaking,
+}
+
+// How the agent attaches the compensation datum. No = 0, Hash = 1, Inline = 2.
+type DatumType {
+    NoDatum,
+    HashDatum,
+    InlineDatum,
+}
+
+// SwapAToB = 0 (offer asset A, receive B), SwapBToA = 1.
+type SwapDirection {
+    SwapAToB,
+    SwapBToA,
+}
+
+// Swap = Constr(0, [direction, minWantedTokens]).
+type SwapAction {
+    direction: SwapDirection,
+    min_wanted_tokens: Int,
+}
+
+// RequestDatum = Constr(0, [...13 fields]).
+type RequestDatum {
+    oil: Int,
+    beneficiary: PlutusAddress,
+    owner: PlutusAddress,
+    compensation_datum: List<Int>,
+    compensation_datum_type: DatumType,
+    deadline: Int,
+    asset_a_symbol: Bytes,
+    asset_a_token: Bytes,
+    asset_b_symbol: Bytes,
+    asset_b_token: Bytes,
+    action: SwapAction,
+    a_scale: Int,
+    b_scale: Int,
+}
+
+// --- Transactions ---
+
+/// Lock ADA at the V2 request validator to swap it for the pool's asset B.
+/// The request holds offer + oil + agent fee; the agent later returns at least
+/// `min_receive` of asset B plus the oil to the owner.
+tx place_swap_request(
+    /// Owner payment key hash (28 bytes), written into beneficiary and owner.
+    owner_pkh: Bytes,
+    /// Owner stake key hash (28 bytes), written into beneficiary and owner.
+    owner_stake_key: Bytes,
+    /// ADA offered to the pool, in lovelace (excludes oil and agent fee).
+    offer_lovelace: Int,
+    /// Minimum asset B to receive, in the asset's smallest unit.
+    min_receive: Int,
+    /// Last moment the agent may apply the request, POSIX time in milliseconds.
+    deadline_ms: Int,
+) {
+    input* payment {
+        from: Owner,
+        min_amount: Ada(offer_lovelace + oil + agent_fee) + fees,
+    }
+
+    output request {
+        to: RequestScript,
+        amount: Ada(offer_lovelace + oil + agent_fee),
+        datum: RequestDatum {
+            oil: oil,
+            beneficiary: PlutusAddress {
+                payment: PubKeyCredential { hash: owner_pkh, },
+                staking: JustStaking {
+                    staking: StakingHash {
+                        credential: PubKeyCredential { hash: owner_stake_key, },
+                    },
+                },
+            },
+            owner: PlutusAddress {
+                payment: PubKeyCredential { hash: owner_pkh, },
+                staking: JustStaking {
+                    staking: StakingHash {
+                        credential: PubKeyCredential { hash: owner_stake_key, },
+                    },
+                },
+            },
+            compensation_datum: [],
+            compensation_datum_type: DatumType::NoDatum {},
+            deadline: deadline_ms,
+            asset_a_symbol: "",
+            asset_a_token: "",
+            asset_b_symbol: pool_asset_b_policy,
+            asset_b_token: pool_asset_b_name,
+            action: SwapAction {
+                direction: SwapDirection::SwapAToB {},
+                min_wanted_tokens: min_receive,
+            },
+            a_scale: 1,
+            b_scale: 1,
+        },
+    }
+
+    output change {
+        to: Owner,
+        amount: payment - Ada(offer_lovelace + oil + agent_fee) - fees,
+    }
+
+    // Only the owner can reclaim the request, so the owner key must sign.
+    signers {
+        owner_pkh,
+    }
+}

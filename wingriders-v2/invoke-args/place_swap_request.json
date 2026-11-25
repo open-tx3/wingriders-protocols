@@ -1,0 +1,8 @@
+{
+  "owner": "<your key/key mainnet base address, addr1q…>",
+  "owner_pkh": "<payment key hash of owner, 28-byte hex>",
+  "owner_stake_key": "<stake key hash of owner, 28-byte hex>",
+  "offer_lovelace": "<ADA to offer, in lovelace>",
+  "min_receive": "<minimum SNEK from a current pool quote, whole tokens>",
+  "deadline_ms": "<a future POSIX time, in milliseconds>"
+}
