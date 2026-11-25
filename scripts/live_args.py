@@ -36,7 +36,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--owner", required=True, help="owner key/key base address (addr1q…)")
     ap.add_argument("--offer-lovelace", type=int, required=True, help="ADA offered, in lovelace")
-    ap.add_argument("--min-receive", type=int, required=True, help="minimum DJED, smallest unit")
+    ap.add_argument("--min-receive", type=int, required=True, help="minimum SNEK (whole tokens; SNEK has no decimals)")
     ap.add_argument("--deadline-minutes", type=int, default=180, help="deadline from now (default 180)")
     args = ap.parse_args()
     if not 0 < args.deadline_minutes <= 30 * 24 * 60:

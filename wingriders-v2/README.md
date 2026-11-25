@@ -6,8 +6,8 @@ validator, then a WingRiders agent applies it against the pool and pays the
 result to the user ([how a swap works](https://docs.wingriders.com/actions/swapping)).
 
 This interface covers the first transaction only, on one pinned pool:
-`place_swap_request` offers ADA to the **ADA/DJED** pool on **mainnet** and asks
-for at least a minimum amount of DJED in return. Fulfilment is the agent's
+`place_swap_request` offers ADA to the **ADA/SNEK** pool on **mainnet** and asks
+for at least a minimum amount of SNEK in return. Fulfilment is the agent's
 transaction, and reclaim, liquidity and other pools are out of scope.
 
 Source: [`WingRiders/dex-v2-contracts@280a9e8`](https://github.com/WingRiders/dex-v2-contracts/tree/280a9e895077ab746c2713880efba79038fea50f)
@@ -34,9 +34,9 @@ proceeds elsewhere.
 |---|---|
 | Request validator (PlutusV2) | `c134d839a64a5dfb9b155869ef3f34280751a622f69958baa8ffd29c` |
 | `RequestScript` party | `addr1w8qnfkpe5e99m7umz4vxnmelxs5qw5dxytmfjk964rla98q605wte` |
-| Pool | ADA/DJED, pool validator `af97793b8702f381976cec83e303e9ce17781458c73c4bb16fe02b83` |
-| `pool_asset_b_policy` | `8db269c3ec630e06ae29f74bc39edd1f87c819f1056206e879a1cd61` (DJED) |
-| `pool_asset_b_name` | `446a65644d6963726f555344` (`DjedMicroUSD`) |
+| Pool | ADA/SNEK, pool validator `af97793b8702f381976cec83e303e9ce17781458c73c4bb16fe02b83` |
+| `pool_asset_b_policy` | `279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f` (SNEK) |
+| `pool_asset_b_name` | `534e454b` (`SNEK`) |
 | `agent_fee` | `2000000` lovelace, the pool datum's `agentFeeAda` |
 | `oil` | `2000000` lovelace, the contract minimum `requestOilAda`; refunded with the result |
 
@@ -51,7 +51,7 @@ Every coordinate and where it was read is in
 | `owner_pkh` | Bytes | 28-byte hex | Payment key hash of `owner`. |
 | `owner_stake_key` | Bytes | 28-byte hex | Stake key hash of `owner`. |
 | `offer_lovelace` | Int | lovelace | ADA offered to the pool, excluding oil and agent fee. |
-| `min_receive` | Int | DJED smallest unit (1 DJED = 1 000 000) | Minimum DJED the agent must pay out. |
+| `min_receive` | Int | whole SNEK (the token has no decimals) | Minimum SNEK the agent must pay out. |
 | `deadline_ms` | Int | POSIX **milliseconds** | Last moment the agent may apply the request. |
 
 `owner_pkh` and `owner_stake_key` must be the two halves of `owner`;
@@ -81,14 +81,14 @@ One output at `RequestScript` holding only ADA,
 | `action` | `Swap { SwapAToB, min_receive }` |
 | `a_scale`, `b_scale` | `1`, `1` |
 
-The agent later returns at least `min_receive` DJED plus the `oil` to the
+The agent later returns at least `min_receive` SNEK plus the `oil` to the
 owner and keeps `agent_fee`.
 
 Reference request: mainnet transaction
-[`92c25e5e…20e02`](https://cexplorer.io/tx/92c25e5ec64e8c2843d282d4b1c9469e815bf29823b16377fd5040ff06220e02)
-(440 040 900 lovelace = 436 040 900 offered + 2 000 000 oil + 2 000 000 agent
-fee; minimum 62 220 622 DJED; deadline 1795560969000), applied in
-[`57b5303f…336a9`](https://cexplorer.io/tx/57b5303f71e40df66cda31a59cfc105ff8c4f3dd6a2f87e24e5ec1b663c336a9).
+[`a94abb49…f103e`](https://cexplorer.io/tx/a94abb492b23ec07d16d38f0964e3f664851ca19fb4b9b403b9e5b6b544f103e)
+(256 000 000 lovelace = 252 000 000 offered + 2 000 000 oil + 2 000 000 agent
+fee; minimum 89 185 SNEK; deadline 1795499508453), applied in
+[`dd985e27…a33fc`](https://cexplorer.io/tx/dd985e27a493ad0586a786f40b9ad4f1c6d66ade4f28491b08a88b5d493a33fc).
 The [comparison report](invoke-args/comparison-report.md) decodes it next to the
 transaction this interface builds.
 
@@ -116,7 +116,7 @@ default):
 
 ```bash
 python3 ../scripts/live_args.py --owner addr1q... --offer-lovelace 100000000 \
-  --min-receive 14000000 > invoke-args/place_swap_request.json
+  --min-receive 35000 > invoke-args/place_swap_request.json
 trix invoke --profile mainnet --skip-submit --args-json-path invoke-args/place_swap_request.json
 ```
 
@@ -163,7 +163,7 @@ python3 ../scripts/check-request.py
 ```
 
 `regenerate.py` invokes the historical inputs unsigned and never submits.
-`--resolve-from` names any funded mainnet address to pay from (about 445 ADA),
+`--resolve-from` names any funded mainnet address to pay from (about 260 ADA),
 so the refresh does not depend on the reference wallet; the datum and signer
 keep the reference hashes. Without it the reference owner pays.
 

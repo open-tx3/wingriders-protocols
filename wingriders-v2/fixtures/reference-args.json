@@ -1,8 +1,8 @@
 {
-  "owner": "addr1q9px8afysdhdurrjdq9caug6cd86x8ck8s5ah8pk095gg3kqh4646hzrqtl6tsfah8la54q3h6h4zprmlwpz2rw08p7snd4vuu",
-  "owner_pkh": "4263f524836ede0c72680b8ef11ac34fa31f163c29db9c3679688446",
-  "owner_stake_key": "c0bd755d5c4302ffa5c13db9ffda5411beaf51047bfb82250dcf387d",
-  "offer_lovelace": 436040900,
-  "min_receive": 62220622,
-  "deadline_ms": 1795560969000
+  "owner": "addr1q9ckjt72ku92z462xspn8dqplcj9yg306js35c3878npmwj38t7l5cc6pek9wzfcqqr0mcmxlz6mynjfsehkzkt3m80s7u8zm9",
+  "owner_pkh": "71692fcab70aa1574a340333b401fe2452222fd4a11a6227f1e61dba",
+  "owner_stake_key": "513afdfa631a0e6c5709380006fde366f8b5b24e49866f615971d9df",
+  "offer_lovelace": 252000000,
+  "min_receive": 89185,
+  "deadline_ms": 1795499508453
 }

@@ -9,9 +9,9 @@ every row marked *checked* on each CI run, from the fixtures in
 
 | Role | Tx hash | Source |
 |---|---|---|
-| Reference request (ADA → DJED) | `92c25e5ec64e8c2843d282d4b1c9469e815bf29823b16377fd5040ff06220e02` | mainnet, block 14243637, slot 203983905 ([fixture](../fixtures/reference-request.json)) |
-| Agent applying it | `57b5303f71e40df66cda31a59cfc105ff8c4f3dd6a2f87e24e5ec1b663c336a9` | mainnet, same pool |
-| Generated (unsigned) | `1c8c9a17e1a12f7b510202e644d3d9dba29fb53777738ac4a517839704d49892` | `scripts/regenerate.py` (`trix invoke --profile mainnet --skip-submit` with `fixtures/reference-args.json`), trix 0.28.0 ([fixture](../fixtures/generated-request.json)) |
+| Reference request (ADA → SNEK) | `a94abb492b23ec07d16d38f0964e3f664851ca19fb4b9b403b9e5b6b544f103e` | mainnet, block 14240034, slot 203911631 ([fixture](../fixtures/reference-request.json)) |
+| Agent applying it | `dd985e27a493ad0586a786f40b9ad4f1c6d66ade4f28491b08a88b5d493a33fc` | mainnet, same pool |
+| Generated (unsigned) | `783ece2f60ef89e5017e60632e2538612eade6afb01ec5cdcc6ff2e8531b31d7` | `scripts/regenerate.py` (`trix invoke --profile mainnet --skip-submit` with `fixtures/reference-args.json`), trix 0.28.0 ([fixture](../fixtures/generated-request.json)) |
 
 The historical args in [`fixtures/reference-args.json`](../fixtures/reference-args.json)
 replay the reference owner, amounts and deadline, so the two requests should
@@ -24,22 +24,25 @@ run as the README describes.
 | Effect | Reference | Generated | |
 |---|---|---|---|
 | Validator (payment credential) | `c134d839…ffd29c` | `c134d839…ffd29c` | checked |
-| Lovelace | 440 040 900 | 440 040 900 | checked |
+| Lovelace | 256 000 000 | 256 000 000 | checked |
 | Other assets | none | none | checked |
-| Offered = lovelace − oil − agent fee | 436 040 900 | 436 040 900 | checked |
+| Offered = lovelace − oil − agent fee | 252 000 000 | 252 000 000 | checked |
 | `oil` (deposit, ≥ 2 000 000) | 2 000 000 | 2 000 000 | checked |
-| `beneficiary` | key `4263f524…688446`, stake `c0bd755d…cf387d` | same | checked |
+| `beneficiary` | key `71692fca…e61dba`, stake `513afdfa…71d9df` | same | checked |
 | `owner` | same as beneficiary | same | checked |
 | Compensation datum / type | `[]` / `No` | `[]` / `No` | checked |
-| `deadline` (POSIX ms) | 1795560969000 (3 h after the block) | 1795560969000 | checked |
+| `deadline` (POSIX ms) | 1795499508453 (6 h after the block) | 1795499508453 | checked |
 | Asset A | ADA | ADA | checked |
-| Asset B | `8db269c3…a1cd61`.`DjedMicroUSD` | same | checked |
-| `action` | `Swap SwapAToB 62220622` | `Swap SwapAToB 62220622` | checked |
+| Asset B | `279c909f…927a3f`.`SNEK` | same | checked |
+| `action` | `Swap SwapAToB 89185` | `Swap SwapAToB 89185` | checked |
 | `aScale`, `bScale` | 1, 1 | 1, 1 | checked |
 
 The pool datum read in the applying transaction carries `agentFeeAda =
-2000000`. The agent returned 62 297 995 DJED (above the 62 220 622 minimum) and
+2000000`. The agent returned 89 436 SNEK (above the 89 185 minimum) and
 2 500 000 lovelace (at least the oil) to the beneficiary.
+
+Both requests go to the plain validator address `addr1w8qnfkpe…605wte`, with
+no staking part.
 
 ## Negative fixtures
 
@@ -48,7 +51,7 @@ reject it for the named reason.
 
 | Fixture | Change | Rejected as |
 |---|---|---|
-| [`deadline-in-seconds`](../fixtures/negative/deadline-in-seconds.json) | deadline 1795560969 (seconds) | `deadline-units` |
+| [`deadline-in-seconds`](../fixtures/negative/deadline-in-seconds.json) | deadline 1795499508 (seconds) | `deadline-units` |
 | [`lost-deposit`](../fixtures/negative/lost-deposit.json) | value lacks the 2 ADA oil | `deposit-arithmetic` |
 | [`reversed-direction`](../fixtures/negative/reversed-direction.json) | `SwapBToA` on an ADA offer | `direction` |
 
@@ -56,10 +59,9 @@ reject it for the named reason.
 
 | Difference | Reason |
 |---|---|
-| Request address staking part | The reference wallet put its own stake key on the request address (`addr1z8…`); the profile binds the plain validator address (`addr1w8…`). The pool checks only the validator hash. Pass `requestscript` in the args to use a staked variant. |
 | Datum encoding | The reference uses indefinite-length CBOR arrays, Tx3 definite-length. The Plutus data is identical; the datum bytes and hash differ. |
 | Wallet inputs, change, fee | Different UTxOs at resolution time. `--skip-submit` builds with a provisional fee. |
-| TTL | The reference sets slot 203987478; this interface sets no validity interval. The deadline in the datum bounds fulfilment. |
+| TTL | The reference sets slot 203911797; this interface sets no validity interval. The deadline in the datum bounds fulfilment. |
 | Required signers | The generated transaction lists `owner_pkh` (body field 14) so only the owner's key can authorize the request; the reference lists none, its wallet signs as the spender. |
 | Witnesses | The generated transaction is unsigned. |
 
